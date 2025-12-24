@@ -348,7 +348,7 @@
   </div>
 
   <script type="module">
-    /************ 1) FIREBASE CONFIG (CDN STYLE FOR GITHUB PAGES) ************/
+    /************ 1) FIREBASE CONFIG (KEEP THIS AS-IS) ************/
     const firebaseConfig = {
       apiKey: "AIzaSyBGMiQj1QLqcmhzV_qId4eoZzRQVSikjHo",
       authDomain: "littleolliesliderpuzzle.firebaseapp.com",
@@ -359,19 +359,29 @@
       measurementId: "G-4R4VTGXGQH"
     };
 
-    // Enable/disable by checking if config looks real
-    const FIREBASE_ENABLED = !!firebaseConfig?.apiKey && !firebaseConfig.apiKey.includes("PASTE");
+    // This is only "true" if you actually have keys present
+    const CONFIG_PRESENT =
+      !!firebaseConfig?.apiKey &&
+      !!firebaseConfig?.projectId &&
+      !String(firebaseConfig.apiKey).toUpperCase().includes("PASTE");
 
-    /************ 2) FIREBASE IMPORTS ************/
+    /************ 2) FIREBASE IMPORTS (CDN) ************/
+    let firebaseOk = false; // becomes true only if imports + init work
     let db = null, addDoc, collection, getDocs, limit, orderBy, query, serverTimestamp, where;
 
-    if (FIREBASE_ENABLED) {
-      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
-      const firestore = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
-      ({ addDoc, collection, getDocs, limit, orderBy, query, serverTimestamp, where } = firestore);
+    if (CONFIG_PRESENT) {
+      try {
+        const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
+        const firestore = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
+        ({ addDoc, collection, getDocs, limit, orderBy, query, serverTimestamp, where } = firestore);
 
-      const app = initializeApp(firebaseConfig);
-      db = firestore.getFirestore(app);
+        const app = initializeApp(firebaseConfig);
+        db = firestore.getFirestore(app);
+        firebaseOk = true;
+      } catch (e) {
+        console.error("Firebase failed to load/init:", e);
+        firebaseOk = false;
+      }
     }
 
     /************ 3) GAME STATE ************/
@@ -408,7 +418,7 @@
     let N = 3; // grid size
     let puzzleId = 1;
     let imageSrc = "";
-    let tiles = [];        // array length N*N, store tileIndex (0..N*N-2) or -1 for blank
+    let tiles = [];
     let solved = [];
     let blankPos = 0;
     let moves = 0;
@@ -607,7 +617,6 @@
     });
 
     puzzleSelect.addEventListener("change", () => loadPuzzle(parseInt(puzzleSelect.value, 10)));
-
     difficultyEl.addEventListener("change", () => loadPuzzle(puzzleId));
 
     /************ 11) WIN + CONFETTI ************/
@@ -630,8 +639,8 @@
     submitScoreBtn.addEventListener("click", async () => {
       const name = (playerNameEl.value || "").trim().slice(0, 20) || "Anon";
 
-      if (!FIREBASE_ENABLED) {
-        alert("Firebase not configured yet (config missing).");
+      if (!firebaseOk) {
+        alert("Firebase isn't loading. Test using your GitHub Pages URL (not file://) and check Console errors.");
         return;
       }
 
@@ -642,14 +651,14 @@
           grid: N,
           moves,
           time: elapsedSec,
-          createdAt: new Date(),          // ✅ you asked for this
-          createdAtServer: serverTimestamp()
+          createdAt: new Date(),              // ✅ requested
+          createdAtServer: serverTimestamp()  // keeps server time too
         });
         playerNameEl.value = "";
         alert("Score submitted! ✅");
       } catch (e) {
         console.error(e);
-        alert("Couldn’t submit score. Check Firestore rules + that indexes exist.");
+        alert("Couldn’t submit score. Check Firestore rules + indexes. (Open Console for the exact error.)");
       }
     });
 
@@ -743,10 +752,10 @@
       header.innerHTML = `<span class="muted">Top 10 (Grid ${gridSize}×${gridSize})</span><span class="muted">Moves • Time</span>`;
       lbList.appendChild(header);
 
-      if (!FIREBASE_ENABLED) {
+      if (!firebaseOk) {
         const row = document.createElement("div");
         row.className = "lbRow";
-        row.innerHTML = `<span class="muted">Firebase not configured</span><span class="muted">—</span>`;
+        row.innerHTML = `<span class="muted">Firebase failed to load</span><span class="muted">Check Console</span>`;
         lbList.appendChild(row);
         return;
       }
@@ -799,7 +808,7 @@
         console.error(e);
         const row = document.createElement("div");
         row.className = "lbRow";
-        row.innerHTML = `<span class="muted">Leaderboard error</span><span class="muted">Check rules/indexes</span>`;
+        row.innerHTML = `<span class="muted">Leaderboard error</span><span class="muted">Rules/index</span>`;
         lbList.appendChild(row);
       }
     }
