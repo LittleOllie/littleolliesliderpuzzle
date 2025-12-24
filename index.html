@@ -82,12 +82,8 @@
       transition: transform .06s ease;
     }
     button:active{ transform: scale(.98); }
-    button.primary{
-      background: #fff;
-    }
-    button.ghost{
-      background: rgba(255,255,255,.75);
-    }
+    button.primary{ background:#fff; }
+    button.ghost{ background: rgba(255,255,255,.75); }
 
     .stats{
       display:flex;
@@ -144,9 +140,7 @@
       overflow:hidden;
       transform: translateZ(0);
     }
-
     .tile:active{ transform: scale(.995); }
-
     .tile.blank{
       background: transparent;
       box-shadow: none;
@@ -171,32 +165,9 @@
       line-height: 1.3;
       margin-bottom: 10px;
     }
-
-    .leaderboard{
-      margin-top: 10px;
-      border-radius: 14px;
-      overflow:hidden;
-      background: rgba(255,255,255,.10);
-    }
-    .lbRow{
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      padding: 8px 10px;
-      font-weight: 700;
-      border-bottom: 1px solid rgba(255,255,255,.10);
-      font-size: 13px;
-    }
-    .lbRow:last-child{ border-bottom:none; }
     .muted{ opacity:.9; font-weight:700; }
 
-    /* top 3 highlight + divider after 3 */
-    .lbRow.rank1{ background: rgba(255, 215, 0, .18); }
-    .lbRow.rank2{ background: rgba(192, 192, 192, .16); }
-    .lbRow.rank3{ background: rgba(205, 127, 50, .16); }
-    .lbRow.dividerTop{ border-top: 2px solid rgba(255,255,255,.14); }
-
-    /* Win modal */
+    /* Modals */
     .overlay{
       position: fixed;
       inset:0;
@@ -208,7 +179,7 @@
       padding: 14px;
     }
     .modal{
-      width: 520px;
+      width: 560px;
       max-width: 95vw;
       background: rgba(20,20,28,.96);
       border-radius: 18px;
@@ -235,6 +206,57 @@
       align-items:center;
     }
 
+    /* Leaderboard list */
+    .leaderboard{
+      margin-top: 10px;
+      border-radius: 14px;
+      overflow:hidden;
+      background: rgba(255,255,255,.10);
+    }
+    .lbRow{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding: 8px 10px;
+      font-weight: 700;
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      font-size: 13px;
+    }
+    .lbRow:last-child{ border-bottom:none; }
+
+    /* Top 3 shading */
+    .lbRow.top1{ background: rgba(255,215,0,.18); }
+    .lbRow.top2{ background: rgba(192,192,192,.16); }
+    .lbRow.top3{ background: rgba(205,127,50,.14); }
+
+    .lbDivider{
+      height: 1px;
+      background: rgba(255,255,255,.18);
+    }
+
+    /* Leaderboard tabs */
+    .tabs{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top: 8px;
+    }
+    .tabBtn{
+      border-radius: 12px;
+      padding: 8px 10px;
+      font-weight: 900;
+      font-size: 13px;
+      background: rgba(255,255,255,.82);
+      color:#111;
+      box-shadow: 0 8px 18px rgba(0,0,0,.18);
+      cursor:pointer;
+      border:none;
+    }
+    .tabBtn.active{
+      background:#fff;
+      outline: 2px solid rgba(255,255,255,.35);
+    }
+
     #confettiCanvas{
       position: fixed;
       inset:0;
@@ -259,11 +281,15 @@
           <option value="5">Hard (5×5)</option>
         </select>
 
+        <!-- ✅ This dropdown is restored and will NOT disappear -->
         <select id="puzzleSelect"></select>
 
         <button id="randomBtn" class="ghost">🎲 Random</button>
         <button id="startBtn" class="primary">▶️ Start</button>
         <button id="resetBtn" class="ghost">↩️ Reset</button>
+
+        <!-- ✅ Leaderboard button back -->
+        <button id="leaderboardBtn" class="ghost">🏆 Leaderboard</button>
       </div>
 
       <div class="stats">
@@ -278,17 +304,20 @@
         <div id="board" class="board"></div>
       </div>
 
+      <!-- ✅ Sidebar stays, but leaderboard is removed from here -->
       <div class="sideCard">
-        <p class="sideTitle">Leaderboard</p>
+        <p class="sideTitle">How to play</p>
         <div class="hint">
-          Select a puzzle and difficulty. The tiles preview the image in order.<br/>
+          Pick a puzzle (tiles preview in order).<br/>
           Press <b>Start</b> to scramble and play.
         </div>
 
-        <div class="leaderboard" id="lb"></div>
-
         <div class="hint" style="margin-top:10px;">
           <span class="muted">Tip:</span> For best quality on 5×5, use higher-res source images (e.g. 1000px+).
+        </div>
+
+        <div class="hint" style="margin-top:10px;">
+          <span class="muted">Scoring:</span> Lowest moves wins, then lowest time.
         </div>
       </div>
     </div>
@@ -314,9 +343,31 @@
     </div>
   </div>
 
+  <!-- Leaderboard popup -->
+  <div class="overlay" id="lbOverlay">
+    <div class="modal">
+      <h2>🏆 Leaderboard</h2>
+      <p class="muted" style="margin-top:0;">
+        Top 10 overall for each difficulty (lowest moves, then lowest time).
+      </p>
+
+      <div class="tabs">
+        <button class="tabBtn active" data-grid="3">Easy (3×3)</button>
+        <button class="tabBtn" data-grid="4">Medium (4×4)</button>
+        <button class="tabBtn" data-grid="5">Hard (5×5)</button>
+      </div>
+
+      <div class="leaderboard" id="lbList"></div>
+
+      <div class="row" style="justify-content:flex-end; margin-top:10px;">
+        <button id="closeLbBtn" class="ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
-    /************ 1) CONFIG ************/
-    // ✅ Paste YOUR firebase config here (same project as your memory game if you want)
+    /************ 1) FIREBASE CONFIG ************/
+    // ✅ Paste YOUR firebase config here (same project as memory game)
     const firebaseConfig = {
       apiKey: "PASTE_YOURS",
       authDomain: "PASTE_YOURS",
@@ -326,17 +377,17 @@
       appId: "PASTE_YOURS",
     };
 
-    const FIREBASE_ENABLED = firebaseConfig.apiKey && firebaseConfig.apiKey !== "PASTE_YOURS";
+    const FIREBASE_ENABLED = firebaseConfig.apiKey !== "PASTE_YOURS";
 
-    /************ 2) IMPORTS ************/
-    let db = null, addDoc, collection, getDocs, limit, orderBy, query, where, getFirestore, initializeApp;
+    /************ 2) FIREBASE IMPORTS ************/
+    let db = null, addDoc, collection, getDocs, limit, orderBy, query, where;
     if (FIREBASE_ENABLED) {
-      ({ initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js"));
-      ({ getFirestore, addDoc, collection, getDocs, limit, orderBy, query, where } =
-        await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js"));
+      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
+      const firestore = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
+      ({ addDoc, collection, getDocs, limit, orderBy, query, where } = firestore);
 
       const app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
+      db = firestore.getFirestore(app);
     }
 
     /************ 3) DOM ************/
@@ -350,8 +401,6 @@
     const randomBtn = document.getElementById("randomBtn");
     const puzzleLabel = document.getElementById("puzzleLabel");
 
-    const lbEl = document.getElementById("lb");
-
     const winOverlay = document.getElementById("winOverlay");
     const winMovesEl = document.getElementById("winMoves");
     const winTimeEl = document.getElementById("winTime");
@@ -359,14 +408,20 @@
     const submitScoreBtn = document.getElementById("submitScoreBtn");
     const playerNameEl = document.getElementById("playerName");
 
+    const leaderboardBtn = document.getElementById("leaderboardBtn");
+    const lbOverlay = document.getElementById("lbOverlay");
+    const closeLbBtn = document.getElementById("closeLbBtn");
+    const lbList = document.getElementById("lbList");
+    const tabBtns = Array.from(document.querySelectorAll(".tabBtn"));
+
     const confettiCanvas = document.getElementById("confettiCanvas");
     const ctx = confettiCanvas.getContext("2d");
 
-    /************ 4) STATE ************/
-    let N = 3;
+    /************ 4) GAME STATE ************/
+    let N = 3; // grid size
     let puzzleId = 1;
     let imageSrc = "";
-    let tiles = [];
+    let tiles = [];        // array length N*N, store tileIndex (0..N*N-2) or -1 for blank
     let solved = [];
     let blankPos = 0;
     let moves = 0;
@@ -376,9 +431,8 @@
     let startTime = 0;
     let elapsedSec = 0;
 
-    /************ 5) PUZZLE LIST (1..100) ************/
+    /************ 5) PUZZLE LIST ************/
     function buildPuzzleList() {
-      // always rebuild, so it can’t “disappear” due to partial edits
       puzzleSelect.innerHTML = "";
       for (let i = 1; i <= 100; i++) {
         const opt = document.createElement("option");
@@ -396,8 +450,11 @@
     function bgPosForTile(tileIndex) {
       const r = Math.floor(tileIndex / N);
       const c = tileIndex % N;
-      const x = (c / (N - 1)) * 100;
-      const y = (r / (N - 1)) * 100;
+
+      // Use correct percent steps that match N tiles
+      // (avoid rounding issues that can make 5x5 look worse)
+      const x = (c * 100) / (N - 1);
+      const y = (r * 100) / (N - 1);
       return `${x}% ${y}%`;
     }
 
@@ -413,7 +470,7 @@
       puzzleLabel.textContent = String(puzzleId);
       imageSrc = `puzzles/${puzzleId}.png`;
 
-      // reset + show solved preview on tiles
+      // Reset state + show solved preview on tiles (no second display)
       started = false;
       stopTimer();
       elapsedSec = 0;
@@ -427,7 +484,6 @@
       blankPos = tiles.indexOf(-1);
 
       renderBoard();
-      refreshLeaderboard();
     }
 
     function renderBoard() {
@@ -447,6 +503,8 @@
           d.style.backgroundImage = `url(${imageSrc})`;
           d.style.setProperty("--bgPos", bgPosForTile(tileVal));
           d.style.backgroundPosition = d.style.getPropertyValue("--bgPos");
+
+          // Encourage smooth scaling (helps reduce ugly pixelation artifacts)
           d.style.imageRendering = "auto";
         }
 
@@ -468,7 +526,7 @@
     }
 
     function onTileClick(pos) {
-      if (!started) return;
+      if (!started) return;               // only move after Start
       if (tiles[pos] === -1) return;
       if (!isAdjacent(pos, blankPos)) return;
 
@@ -509,6 +567,7 @@
         const neighbors = getBlankNeighbors(blankPos).filter(p => p !== lastBlank);
         const pick = neighbors[Math.floor(Math.random() * neighbors.length)];
         lastBlank = blankPos;
+
         [tiles[pick], tiles[blankPos]] = [tiles[blankPos], tiles[pick]];
         blankPos = pick;
       }
@@ -537,7 +596,9 @@
     startBtn.addEventListener("click", () => {
       N = parseInt(difficultyEl.value, 10);
       buildSolvedState();
-      scrambleSolvable(N === 5 ? 2500 : 1200);
+
+      // more steps for 5x5 so it feels properly scrambled
+      scrambleSolvable(N === 5 ? 2500 : (N === 4 ? 1600 : 1100));
 
       moves = 0;
       movesEl.textContent = "0";
@@ -565,9 +626,7 @@
       loadPuzzle(id);
     });
 
-    puzzleSelect.addEventListener("change", () => {
-      loadPuzzle(parseInt(puzzleSelect.value, 10));
-    });
+    puzzleSelect.addEventListener("change", () => loadPuzzle(parseInt(puzzleSelect.value, 10)));
 
     difficultyEl.addEventListener("change", () => {
       // keep same puzzle but rebuild preview at new size
@@ -593,23 +652,24 @@
 
     submitScoreBtn.addEventListener("click", async () => {
       const name = (playerNameEl.value || "").trim().slice(0, 20) || "Anon";
+
       if (!FIREBASE_ENABLED) {
         alert("Firebase not configured yet. Add your firebaseConfig to enable leaderboard saving.");
         return;
       }
 
       try {
+        // ✅ per your request: createdAt: new Date()
         await addDoc(collection(db, "slider_scores"), {
           name,
           puzzleId,
           grid: N,
           moves,
           time: elapsedSec,
-          createdAt: new Date(),   // ✅ you asked for this
+          createdAt: new Date(),
         });
 
         playerNameEl.value = "";
-        refreshLeaderboard();
         alert("Score submitted! ✅");
       } catch (e) {
         console.error(e);
@@ -680,27 +740,50 @@
       confettiCanvas.style.display = "none";
     }
 
-    /************ 13) LEADERBOARD ************/
-    async function refreshLeaderboard(){
-      lbEl.innerHTML = "";
+    /************ 13) LEADERBOARD POPUP ************/
+    leaderboardBtn.addEventListener("click", async () => {
+      lbOverlay.style.display = "flex";
+      // default to current difficulty grid
+      setActiveTab(N);
+      await refreshLeaderboardForGrid(N);
+    });
 
-      const title = document.createElement("div");
-      title.className = "lbRow";
-      title.innerHTML = `<span class="muted">Top (Grid ${N}×${N})</span><span class="muted">Moves • Time</span>`;
-      lbEl.appendChild(title);
+    closeLbBtn.addEventListener("click", () => {
+      lbOverlay.style.display = "none";
+    });
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const grid = parseInt(btn.dataset.grid, 10);
+        setActiveTab(grid);
+        await refreshLeaderboardForGrid(grid);
+      });
+    });
+
+    function setActiveTab(grid){
+      tabBtns.forEach(b => b.classList.toggle("active", parseInt(b.dataset.grid,10) === grid));
+    }
+
+    async function refreshLeaderboardForGrid(grid){
+      lbList.innerHTML = "";
+
+      const header = document.createElement("div");
+      header.className = "lbRow";
+      header.innerHTML = `<span class="muted">Top 10 (Grid ${grid}×${grid})</span><span class="muted">Moves • Time</span>`;
+      lbList.appendChild(header);
 
       if (!FIREBASE_ENABLED) {
         const row = document.createElement("div");
         row.className = "lbRow";
         row.innerHTML = `<span class="muted">Firebase not configured</span><span class="muted">—</span>`;
-        lbEl.appendChild(row);
+        lbList.appendChild(row);
         return;
       }
 
       try {
         const q = query(
           collection(db, "slider_scores"),
-          where("grid","==", N),
+          where("grid","==", grid),
           orderBy("moves","asc"),
           orderBy("time","asc"),
           limit(10)
@@ -712,27 +795,30 @@
           const row = document.createElement("div");
           row.className = "lbRow";
           row.innerHTML = `<span class="muted">No scores yet</span><span class="muted">—</span>`;
-          lbEl.appendChild(row);
+          lbList.appendChild(row);
           return;
         }
 
         let rank = 1;
         snap.forEach(doc => {
           const s = doc.data();
-
           const row = document.createElement("div");
-          row.className = "lbRow";
 
-          if (rank === 1) row.classList.add("rank1");
-          if (rank === 2) row.classList.add("rank2");
-          if (rank === 3) row.classList.add("rank3");
-          if (rank === 4) row.classList.add("dividerTop"); // slight divide between 3 and 4
+          // top 3 shading + divider after #3
+          row.className = "lbRow" + (rank===1?" top1":rank===2?" top2":rank===3?" top3":"");
 
           row.innerHTML = `
             <span>${rank}. ${escapeHtml(s.name || "Anon")} <span class="muted">(P${s.puzzleId})</span></span>
             <span>${s.moves} • ${formatTime(s.time || 0)}</span>
           `;
-          lbEl.appendChild(row);
+          lbList.appendChild(row);
+
+          if (rank === 3) {
+            const div = document.createElement("div");
+            div.className = "lbDivider";
+            lbList.appendChild(div);
+          }
+
           rank++;
         });
       } catch (e) {
@@ -740,7 +826,7 @@
         const row = document.createElement("div");
         row.className = "lbRow";
         row.innerHTML = `<span class="muted">Leaderboard error</span><span class="muted">Check rules</span>`;
-        lbEl.appendChild(row);
+        lbList.appendChild(row);
       }
     }
 
