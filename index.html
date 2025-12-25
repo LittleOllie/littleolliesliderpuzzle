@@ -428,8 +428,8 @@
     let startTime = 0;
     let elapsedSec = 0;
 
-    // NEW: scramble animation lock
-    let isScrambling = false;
+    // ✅ NEW: prevent leaderboard spam (1 submit per game)
+    let scoreSubmittedThisGame = false;
 
     /************ 4) PUZZLE LIST ************/
     function buildPuzzleList() {
@@ -468,12 +468,15 @@
       imageSrc = `puzzles/${puzzleId}.png`;
 
       started = false;
-      isScrambling = false;
       stopTimer();
       elapsedSec = 0;
       timeEl.textContent = formatTime(0);
       moves = 0;
       movesEl.textContent = "0";
+
+      // ✅ NEW: switching puzzle resets the "one submit per game" state
+      scoreSubmittedThisGame = false;
+      submitScoreBtn.disabled = false;
 
       N = parseInt(difficultyEl.value, 10);
       buildSolvedState();
@@ -522,7 +525,6 @@
 
     function onTileClick(pos) {
       if (!started) return;
-      if (isScrambling) return;
       if (tiles[pos] === -1) return;
       if (!isAdjacent(pos, blankPos)) return;
 
@@ -544,8 +546,21 @@
     }
 
     /************ 8) SCRAMBLE (SOLVABLE) ************/
-    // NOTE: By scrambling ONLY via valid moves from the solved state,
-    // the final board is ALWAYS solvable. ✅
+    function scrambleSolvable(steps = 1200) {
+      tiles = [...solved];
+      blankPos = tiles.indexOf(-1);
+
+      let lastBlank = -1;
+
+      for (let i = 0; i < steps; i++) {
+        const neighbors = getBlankNeighbors(blankPos).filter(p => p !== lastBlank);
+        const pick = neighbors[Math.floor(Math.random() * neighbors.length)];
+        lastBlank = blankPos;
+
+        [tiles[pick], tiles[blankPos]] = [tiles[blankPos], tiles[pick]];
+        blankPos = pick;
+      }
+    }
 
     function getBlankNeighbors(blank) {
       const [r,c] = posToRC(blank);
@@ -555,84 +570,6 @@
       if (c > 0) out.push(rcToPos(r, c-1));
       if (c < N-1) out.push(rcToPos(r, c+1));
       return out;
-    }
-
-    // Generates a sequence of legal moves (positions to swap with blank)
-    function makeScrambleSequence(steps) {
-      const seq = [];
-      let lastBlank = -1;
-
-      for (let i = 0; i < steps; i++) {
-        const neighbors = getBlankNeighbors(blankPos).filter(p => p !== lastBlank);
-        const pick = neighbors[Math.floor(Math.random() * neighbors.length)];
-        seq.push(pick);
-        lastBlank = blankPos;
-
-        // Apply move to internal state while building sequence
-        [tiles[pick], tiles[blankPos]] = [tiles[blankPos], tiles[pick]];
-        blankPos = pick;
-      }
-
-      return seq;
-    }
-
-    // NEW: animated scramble you can WATCH (3–5 seconds)
-    async function animateScrambleSolvable(durationMs = 3800) {
-      // reset to solved first
-      tiles = [...solved];
-      blankPos = tiles.indexOf(-1);
-      renderBoard();
-
-      // decide how many visible moves to animate (keeps it smooth)
-      // more moves for bigger grids
-      const steps =
-        N === 3 ? 70 :
-        N === 4 ? 95 :
-        125;
-
-      // Build a *legal* move list from solved (solvable guaranteed)
-      // We build sequence on a fresh solved board, but we want to animate it,
-      // so we must rebuild again in a clean way:
-      tiles = [...solved];
-      blankPos = tiles.indexOf(-1);
-
-      // We'll create the picks WITHOUT permanently leaving the board scrambled,
-      // then replay them for animation.
-      const picks = [];
-      let lastBlank = -1;
-      for (let i = 0; i < steps; i++) {
-        const neighbors = getBlankNeighbors(blankPos).filter(p => p !== lastBlank);
-        const pick = neighbors[Math.floor(Math.random() * neighbors.length)];
-        picks.push(pick);
-        lastBlank = blankPos;
-
-        [tiles[pick], tiles[blankPos]] = [tiles[blankPos], tiles[pick]];
-        blankPos = pick;
-      }
-
-      // Now reset again and replay for visible animation
-      tiles = [...solved];
-      blankPos = tiles.indexOf(-1);
-      renderBoard();
-
-      const interval = Math.max(18, Math.floor(durationMs / steps)); // ms per move
-
-      return new Promise((resolve) => {
-        let i = 0;
-        const t = setInterval(() => {
-          const pick = picks[i];
-          [tiles[pick], tiles[blankPos]] = [tiles[blankPos], tiles[pick]];
-          blankPos = pick;
-
-          renderBoard();
-
-          i++;
-          if (i >= picks.length) {
-            clearInterval(t);
-            resolve();
-          }
-        }, interval);
-      });
     }
 
     /************ 9) TIMER ************/
@@ -655,38 +592,17 @@
     }
 
     /************ 10) BUTTONS ************/
-    function setControlsEnabled(enabled){
-      difficultyEl.disabled = !enabled;
-      puzzleSelect.disabled = !enabled;
-      randomBtn.disabled = !enabled;
-      startBtn.disabled = !enabled;
-      resetBtn.disabled = !enabled;
-      leaderboardBtn.disabled = !enabled;
-    }
-
-    startBtn.addEventListener("click", async () => {
-      if (isScrambling) return;
-
+    startBtn.addEventListener("click", () => {
       N = parseInt(difficultyEl.value, 10);
       buildSolvedState();
+      scrambleSolvable(N === 5 ? 2500 : 1200);
 
-      // reset stats
-      started = false;
-      stopTimer();
-      elapsedSec = 0;
-      timeEl.textContent = formatTime(0);
       moves = 0;
       movesEl.textContent = "0";
 
-      // animated scramble (solvable)
-      isScrambling = true;
-      setControlsEnabled(false);
-
-      await animateScrambleSolvable(3800); // ~3–5 seconds feel
-
-      // now start playing
-      isScrambling = false;
-      setControlsEnabled(true);
+      // ✅ NEW: new game => allow exactly one submission (after win)
+      scoreSubmittedThisGame = false;
+      submitScoreBtn.disabled = false;
 
       started = true;
       startTimer();
@@ -694,8 +610,6 @@
     });
 
     resetBtn.addEventListener("click", () => {
-      if (isScrambling) return;
-
       started = false;
       stopTimer();
       elapsedSec = 0;
@@ -704,26 +618,22 @@
       movesEl.textContent = "0";
       tiles = [...solved];
       blankPos = tiles.indexOf(-1);
+
+      // ✅ NEW: resetting cancels the “this game’s” submit
+      scoreSubmittedThisGame = false;
+      submitScoreBtn.disabled = false;
+
       renderBoard();
     });
 
     randomBtn.addEventListener("click", () => {
-      if (isScrambling) return;
-
       const id = 1 + Math.floor(Math.random() * 100);
       puzzleSelect.value = String(id);
       loadPuzzle(id);
     });
 
-    puzzleSelect.addEventListener("change", () => {
-      if (isScrambling) return;
-      loadPuzzle(parseInt(puzzleSelect.value, 10));
-    });
-
-    difficultyEl.addEventListener("change", () => {
-      if (isScrambling) return;
-      loadPuzzle(puzzleId);
-    });
+    puzzleSelect.addEventListener("change", () => loadPuzzle(parseInt(puzzleSelect.value, 10)));
+    difficultyEl.addEventListener("change", () => loadPuzzle(puzzleId));
 
     /************ 11) WIN + CONFETTI ************/
     function onWin() {
@@ -732,6 +642,9 @@
 
       winMovesEl.textContent = String(moves);
       winTimeEl.textContent = formatTime(elapsedSec);
+
+      // ✅ NEW: if already submitted, keep button disabled in the modal
+      submitScoreBtn.disabled = scoreSubmittedThisGame;
 
       winOverlay.style.display = "flex";
       fireConfetti();
@@ -743,12 +656,21 @@
     });
 
     submitScoreBtn.addEventListener("click", async () => {
+      // ✅ NEW: hard guard against spam
+      if (scoreSubmittedThisGame) {
+        alert("Score already submitted for this game ✅ Start a new game to submit again.");
+        return;
+      }
+
       const name = (playerNameEl.value || "").trim().slice(0, 20) || "Anon";
 
       if (!firebaseOk) {
         alert("Firebase isn't loading. Test using your GitHub Pages URL (not file://) and check Console errors.");
         return;
       }
+
+      // ✅ NEW: prevent double-click spam while request is in flight
+      submitScoreBtn.disabled = true;
 
       try {
         await addDoc(collection(db, "slider_scores"), {
@@ -760,10 +682,18 @@
           createdAt: new Date(),              // ✅ requested
           createdAtServer: serverTimestamp()  // keeps server time too
         });
+
+        // ✅ NEW: lock this game’s submission
+        scoreSubmittedThisGame = true;
+
         playerNameEl.value = "";
         alert("Score submitted! ✅");
       } catch (e) {
         console.error(e);
+
+        // ✅ NEW: re-enable if submit failed (so they can try again)
+        submitScoreBtn.disabled = false;
+
         alert("Couldn’t submit score. Check Firestore rules + indexes. (Open Console for the exact error.)");
       }
     });
@@ -924,7 +854,7 @@
         .replaceAll("&","&amp;")
         .replaceAll("<","&lt;")
         .replaceAll(">","&gt;")
-        .replaceAll('"'," &quot;")
+        .replaceAll('"',"&quot;")
         .replaceAll("'","&#039;");
     }
 
