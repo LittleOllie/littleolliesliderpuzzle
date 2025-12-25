@@ -428,8 +428,27 @@
     let startTime = 0;
     let elapsedSec = 0;
 
-    // ✅ NEW: prevent leaderboard spam (1 submit per game)
+    // NEW: prevent spam submissions + manage shuffle animation
+    let canSubmitScoreThisGame = false;
     let scoreSubmittedThisGame = false;
+    let isShuffling = false;
+
+    function setControlsEnabled(enabled){
+      // Don’t change visuals, just disable
+      difficultyEl.disabled = !enabled;
+      puzzleSelect.disabled = !enabled;
+      randomBtn.disabled = !enabled;
+      startBtn.disabled = !enabled;
+      resetBtn.disabled = !enabled;
+      leaderboardBtn.disabled = !enabled;
+    }
+
+    function resetScoreSubmissionLock(){
+      canSubmitScoreThisGame = false;
+      scoreSubmittedThisGame = false;
+      submitScoreBtn.disabled = false;
+      submitScoreBtn.textContent = "🏆 Submit Score";
+    }
 
     /************ 4) PUZZLE LIST ************/
     function buildPuzzleList() {
@@ -468,15 +487,16 @@
       imageSrc = `puzzles/${puzzleId}.png`;
 
       started = false;
+      isShuffling = false;
+      setControlsEnabled(true);
+
       stopTimer();
       elapsedSec = 0;
       timeEl.textContent = formatTime(0);
       moves = 0;
       movesEl.textContent = "0";
 
-      // ✅ NEW: switching puzzle resets the "one submit per game" state
-      scoreSubmittedThisGame = false;
-      submitScoreBtn.disabled = false;
+      resetScoreSubmissionLock();
 
       N = parseInt(difficultyEl.value, 10);
       buildSolvedState();
@@ -525,6 +545,7 @@
 
     function onTileClick(pos) {
       if (!started) return;
+      if (isShuffling) return;
       if (tiles[pos] === -1) return;
       if (!isAdjacent(pos, blankPos)) return;
 
@@ -546,6 +567,17 @@
     }
 
     /************ 8) SCRAMBLE (SOLVABLE) ************/
+    function getBlankNeighbors(blank) {
+      const [r,c] = posToRC(blank);
+      const out = [];
+      if (r > 0) out.push(rcToPos(r-1, c));
+      if (r < N-1) out.push(rcToPos(r+1, c));
+      if (c > 0) out.push(rcToPos(r, c-1));
+      if (c < N-1) out.push(rcToPos(r, c+1));
+      return out;
+    }
+
+    // (Still kept for instant scramble if you ever want it)
     function scrambleSolvable(steps = 1200) {
       tiles = [...solved];
       blankPos = tiles.indexOf(-1);
@@ -562,14 +594,58 @@
       }
     }
 
-    function getBlankNeighbors(blank) {
-      const [r,c] = posToRC(blank);
-      const out = [];
-      if (r > 0) out.push(rcToPos(r-1, c));
-      if (r < N-1) out.push(rcToPos(r+1, c));
-      if (c > 0) out.push(rcToPos(r, c-1));
-      if (c < N-1) out.push(rcToPos(r, c+1));
-      return out;
+    // NEW: animated solvable scramble (3–5 seconds look)
+    async function animateScrambleSolvable(durationMs = 3500, movesPerSecond = 22) {
+      // Always start from solved so it's 100% solvable
+      tiles = [...solved];
+      blankPos = tiles.indexOf(-1);
+
+      isShuffling = true;
+      started = false;
+      setControlsEnabled(false);
+
+      // Ensure timer/moves reset BEFORE scramble begins
+      stopTimer();
+      elapsedSec = 0;
+      timeEl.textContent = formatTime(0);
+      moves = 0;
+      movesEl.textContent = "0";
+
+      resetScoreSubmissionLock();
+
+      // Render initial solved board
+      renderBoard();
+
+      const intervalMs = Math.max(25, Math.floor(1000 / movesPerSecond));
+      const totalSteps = Math.max(40, Math.floor(durationMs / intervalMs));
+
+      let lastBlank = -1;
+
+      await new Promise(resolve => {
+        let step = 0;
+        const id = setInterval(() => {
+          // one legal move per tick (never unsolvable)
+          const neighbors = getBlankNeighbors(blankPos).filter(p => p !== lastBlank);
+          const pick = neighbors[Math.floor(Math.random() * neighbors.length)];
+          lastBlank = blankPos;
+
+          [tiles[pick], tiles[blankPos]] = [tiles[blankPos], tiles[pick]];
+          blankPos = pick;
+
+          renderBoard();
+
+          step++;
+          if (step >= totalSteps) {
+            clearInterval(id);
+            resolve();
+          }
+        }, intervalMs);
+      });
+
+      isShuffling = false;
+      started = true;
+      setControlsEnabled(true);
+      startTimer();
     }
 
     /************ 9) TIMER ************/
@@ -592,37 +668,34 @@
     }
 
     /************ 10) BUTTONS ************/
-    startBtn.addEventListener("click", () => {
+    startBtn.addEventListener("click", async () => {
+      if (isShuffling) return;
+
       N = parseInt(difficultyEl.value, 10);
       buildSolvedState();
-      scrambleSolvable(N === 5 ? 2500 : 1200);
 
-      moves = 0;
-      movesEl.textContent = "0";
-
-      // ✅ NEW: new game => allow exactly one submission (after win)
-      scoreSubmittedThisGame = false;
-      submitScoreBtn.disabled = false;
-
-      started = true;
-      startTimer();
-      renderBoard();
+      // 3–5 seconds scramble animation (kept ~3.5s as requested)
+      // Hard gets a bit more movement density by default.
+      const duration = 3500;
+      const mps = (N === 5) ? 26 : 22;
+      await animateScrambleSolvable(duration, mps);
     });
 
     resetBtn.addEventListener("click", () => {
       started = false;
+      isShuffling = false;
+      setControlsEnabled(true);
+
       stopTimer();
       elapsedSec = 0;
       timeEl.textContent = formatTime(0);
       moves = 0;
       movesEl.textContent = "0";
+
+      resetScoreSubmissionLock();
+
       tiles = [...solved];
       blankPos = tiles.indexOf(-1);
-
-      // ✅ NEW: resetting cancels the “this game’s” submit
-      scoreSubmittedThisGame = false;
-      submitScoreBtn.disabled = false;
-
       renderBoard();
     });
 
@@ -638,13 +711,17 @@
     /************ 11) WIN + CONFETTI ************/
     function onWin() {
       started = false;
+      isShuffling = false;
       stopTimer();
+
+      // Allow exactly ONE submit for this completed game
+      canSubmitScoreThisGame = true;
+      scoreSubmittedThisGame = false;
+      submitScoreBtn.disabled = false;
+      submitScoreBtn.textContent = "🏆 Submit Score";
 
       winMovesEl.textContent = String(moves);
       winTimeEl.textContent = formatTime(elapsedSec);
-
-      // ✅ NEW: if already submitted, keep button disabled in the modal
-      submitScoreBtn.disabled = scoreSubmittedThisGame;
 
       winOverlay.style.display = "flex";
       fireConfetti();
@@ -656,9 +733,9 @@
     });
 
     submitScoreBtn.addEventListener("click", async () => {
-      // ✅ NEW: hard guard against spam
-      if (scoreSubmittedThisGame) {
-        alert("Score already submitted for this game ✅ Start a new game to submit again.");
+      // NEW: prevent leaderboard spam
+      if (!canSubmitScoreThisGame || scoreSubmittedThisGame) {
+        alert("You can only submit 1 score per game ✅");
         return;
       }
 
@@ -669,8 +746,11 @@
         return;
       }
 
-      // ✅ NEW: prevent double-click spam while request is in flight
+      // Lock immediately (prevents double-click spamming too)
+      scoreSubmittedThisGame = true;
+      canSubmitScoreThisGame = false;
       submitScoreBtn.disabled = true;
+      submitScoreBtn.textContent = "✅ Submitted";
 
       try {
         await addDoc(collection(db, "slider_scores"), {
@@ -682,17 +762,16 @@
           createdAt: new Date(),              // ✅ requested
           createdAtServer: serverTimestamp()  // keeps server time too
         });
-
-        // ✅ NEW: lock this game’s submission
-        scoreSubmittedThisGame = true;
-
         playerNameEl.value = "";
         alert("Score submitted! ✅");
       } catch (e) {
         console.error(e);
 
-        // ✅ NEW: re-enable if submit failed (so they can try again)
+        // If it failed, re-allow ONE attempt for this same game
+        scoreSubmittedThisGame = false;
+        canSubmitScoreThisGame = true;
         submitScoreBtn.disabled = false;
+        submitScoreBtn.textContent = "🏆 Submit Score";
 
         alert("Couldn’t submit score. Check Firestore rules + indexes. (Open Console for the exact error.)");
       }
