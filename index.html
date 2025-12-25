@@ -428,6 +428,10 @@
     let startTime = 0;
     let elapsedSec = 0;
 
+    // NEW: scramble animation state (kept minimal, doesn’t change your UI)
+    let scrambling = false;
+    let scrambleTimer = null;
+
     /************ 4) PUZZLE LIST ************/
     function buildPuzzleList() {
       puzzleSelect.innerHTML = "";
@@ -466,6 +470,7 @@
 
       started = false;
       stopTimer();
+      stopScrambleAnim(); // NEW: stop any scramble if changing puzzle
       elapsedSec = 0;
       timeEl.textContent = formatTime(0);
       moves = 0;
@@ -518,6 +523,7 @@
 
     function onTileClick(pos) {
       if (!started) return;
+      if (scrambling) return; // NEW: block clicks while scrambling
       if (tiles[pos] === -1) return;
       if (!isAdjacent(pos, blankPos)) return;
 
@@ -565,6 +571,67 @@
       return out;
     }
 
+    /************ 8b) SCRAMBLE ANIMATION (NEW, SOLVABLE BY CONSTRUCTION) ************/
+    function stopScrambleAnim(){
+      scrambling = false;
+      if (scrambleTimer) clearInterval(scrambleTimer);
+      scrambleTimer = null;
+    }
+
+    async function scrambleSolvableAnimated(totalMs = 4000) {
+      // Start from solved, then make legal moves for ~3–5 seconds.
+      // Because we ONLY do legal moves from solved, the result is always solvable.
+      stopScrambleAnim();
+
+      tiles = [...solved];
+      blankPos = tiles.indexOf(-1);
+      renderBoard();
+
+      scrambling = true;
+
+      // Disable controls during scramble (tiny UX improvement, but doesn’t change layout)
+      startBtn.disabled = true;
+      resetBtn.disabled = true;
+      randomBtn.disabled = true;
+      puzzleSelect.disabled = true;
+      difficultyEl.disabled = true;
+      leaderboardBtn.disabled = true;
+
+      const intervalMs = 65; // ~60fps-ish feel without being heavy
+      const steps = Math.max(25, Math.floor(totalMs / intervalMs));
+      let step = 0;
+      let lastBlank = -1;
+
+      return new Promise((resolve) => {
+        scrambleTimer = setInterval(() => {
+          // pick neighbor (avoid immediate undo when possible)
+          const neighbors = getBlankNeighbors(blankPos).filter(p => p !== lastBlank);
+          const pick = neighbors[Math.floor(Math.random() * neighbors.length)];
+          lastBlank = blankPos;
+
+          [tiles[pick], tiles[blankPos]] = [tiles[blankPos], tiles[pick]];
+          blankPos = pick;
+
+          renderBoard();
+
+          step++;
+          if (step >= steps) {
+            stopScrambleAnim();
+
+            // Re-enable controls
+            startBtn.disabled = false;
+            resetBtn.disabled = false;
+            randomBtn.disabled = false;
+            puzzleSelect.disabled = false;
+            difficultyEl.disabled = false;
+            leaderboardBtn.disabled = false;
+
+            resolve();
+          }
+        }, intervalMs);
+      });
+    }
+
     /************ 9) TIMER ************/
     function startTimer() {
       stopTimer();
@@ -585,20 +652,33 @@
     }
 
     /************ 10) BUTTONS ************/
-    startBtn.addEventListener("click", () => {
+    startBtn.addEventListener("click", async () => {
+      // Prevent double-start while scrambling
+      if (scrambling) return;
+
       N = parseInt(difficultyEl.value, 10);
       buildSolvedState();
-      scrambleSolvable(N === 5 ? 2500 : 1200);
 
+      // Reset stats before scramble begins (feels clean)
+      started = false;
+      stopTimer();
+      elapsedSec = 0;
+      timeEl.textContent = formatTime(0);
       moves = 0;
       movesEl.textContent = "0";
 
+      // NEW: watchable scramble (3–5 seconds)
+      const totalMs = 3000 + Math.floor(Math.random() * 2001); // 3000..5000
+      await scrambleSolvableAnimated(totalMs);
+
+      // Now begin play
       started = true;
       startTimer();
-      renderBoard();
+      // board already rendered during scramble; no extra changes needed
     });
 
     resetBtn.addEventListener("click", () => {
+      if (scrambling) return; // NEW: ignore reset while scrambling (prevents weird states)
       started = false;
       stopTimer();
       elapsedSec = 0;
@@ -611,6 +691,7 @@
     });
 
     randomBtn.addEventListener("click", () => {
+      if (scrambling) return; // NEW
       const id = 1 + Math.floor(Math.random() * 100);
       puzzleSelect.value = String(id);
       loadPuzzle(id);
